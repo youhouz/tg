@@ -1,0 +1,335 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── UTILISATEURS ────────────────────────────────────────────
+
+enum UserRole {
+  CLIENT
+  PRO
+  ADMIN
+}
+
+enum AccountType {
+  PARTICULIER
+  PROFESSIONNEL
+}
+
+model User {
+  id             String      @id @default(cuid())
+  email          String      @unique
+  passwordHash   String
+  firstName      String
+  lastName       String
+  phone          String?
+  role           UserRole    @default(CLIENT)
+  accountType    AccountType @default(PARTICULIER)
+  // Champs B2B
+  companyName    String?
+  siret          String?
+  tvaNumber      String?
+  // Relations
+  addresses      Address[]
+  orders         Order[]
+  favorites      Favorite[]
+  reviews        Review[]
+  loyaltyPoints  Int         @default(0)
+  newsletter     Boolean     @default(false)
+  rgpdConsent    Boolean     @default(false)
+  rgpdConsentDate DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@map("users")
+}
+
+model Address {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label       String   @default("Domicile")
+  firstName   String
+  lastName    String
+  street      String
+  complement  String?
+  zipCode     String
+  city        String
+  country     String   @default("France")
+  isDefault   Boolean  @default(false)
+  orders      Order[]
+  createdAt   DateTime @default(now())
+
+  @@map("addresses")
+}
+
+// ─── CATALOGUE VANILLE ───────────────────────────────────────
+
+enum ProductCategory {
+  GOUSSES          // Gousses de vanille
+  POUDRE           // Poudre de vanille
+  EXTRAIT          // Extraits et arômes
+  CAVIAR           // Caviar de vanille
+  PREPARE          // Préparations (sucre vanillé, etc.)
+  COFFRET          // Coffrets cadeaux
+}
+
+enum VanillaOrigin {
+  MADAGASCAR
+  TAHITI
+  COMORES
+  MEXIQUE
+  OUGANDA
+  PAPOUASIE
+  REUNION
+  INDONESIE
+}
+
+enum VanillaQuality {
+  GOURMET
+  TK
+  ROUGE
+  NOIRE
+  GIVRÉE
+}
+
+enum ConservationMode {
+  AMBIANT
+  FRAIS
+  SEC
+}
+
+model Product {
+  id               String           @id @default(cuid())
+  slug             String           @unique
+  name             String
+  description      String           @db.Text
+  shortDescription String?
+  category         ProductCategory
+  origin           VanillaOrigin?
+  quality          VanillaQuality?
+  // Prix
+  priceParticulier Decimal          @db.Decimal(10, 2)
+  pricePro         Decimal?         @db.Decimal(10, 2)
+  // Poids / Volume
+  weight           Decimal?         @db.Decimal(10, 2) // en grammes
+  unitLabel        String?          // ex: "5 gousses", "100g", "50ml"
+  // Infos alimentaires
+  allergens        String[]
+  ingredients      String?          @db.Text
+  nutritionalInfo  String?          @db.Text
+  conservation     ConservationMode @default(AMBIANT)
+  dlc              DateTime?        // Date Limite de Consommation
+  ddm              DateTime?        // Date de Durabilité Minimale
+  lotNumber        String?
+  // Stock
+  stock            Int              @default(0)
+  stockAlert       Int              @default(5)
+  isActive         Boolean          @default(true)
+  isFeatured       Boolean          @default(false)
+  // SEO
+  metaTitle        String?
+  metaDescription  String?
+  // Relations
+  images           ProductImage[]
+  variants         ProductVariant[]
+  orderItems       OrderItem[]
+  favorites        Favorite[]
+  reviews          Review[]
+  // B2B: quantité minimum pour les pros
+  minOrderPro      Int?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@map("products")
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  alt       String
+  position  Int     @default(0)
+  isPrimary Boolean @default(false)
+
+  @@map("product_images")
+}
+
+model ProductVariant {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  label     String  // ex: "10 gousses", "25 gousses", "100 gousses"
+  weight    Decimal? @db.Decimal(10, 2)
+  priceParticulier Decimal @db.Decimal(10, 2)
+  pricePro  Decimal? @db.Decimal(10, 2)
+  stock     Int     @default(0)
+  sku       String  @unique
+  orderItems OrderItem[]
+
+  @@map("product_variants")
+}
+
+// ─── COMMANDES ───────────────────────────────────────────────
+
+enum OrderStatus {
+  EN_ATTENTE
+  CONFIRMEE
+  EN_PREPARATION
+  EXPEDIEE
+  LIVREE
+  ANNULEE
+  REMBOURSEE
+}
+
+enum DeliveryMode {
+  DOMICILE
+  POINT_RELAIS
+  CLICK_COLLECT
+}
+
+enum PaymentStatus {
+  EN_ATTENTE
+  PAYEE
+  ECHOUEE
+  REMBOURSEE
+}
+
+model Order {
+  id              String        @id @default(cuid())
+  orderNumber     String        @unique
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  addressId       String?
+  address         Address?      @relation(fields: [addressId], references: [id])
+  status          OrderStatus   @default(EN_ATTENTE)
+  paymentStatus   PaymentStatus @default(EN_ATTENTE)
+  deliveryMode    DeliveryMode  @default(DOMICILE)
+  // Montants
+  subtotal        Decimal       @db.Decimal(10, 2)
+  shippingCost    Decimal       @db.Decimal(10, 2) @default(0)
+  discount        Decimal       @db.Decimal(10, 2) @default(0)
+  taxAmount       Decimal       @db.Decimal(10, 2) @default(0)
+  total           Decimal       @db.Decimal(10, 2)
+  // Stripe
+  stripePaymentId String?
+  // Promo
+  promoCodeId     String?
+  promoCode       PromoCode?    @relation(fields: [promoCodeId], references: [id])
+  // Livraison
+  trackingNumber  String?
+  deliveryNotes   String?
+  // Facturation B2B
+  invoiceNumber   String?
+  // Relations
+  items           OrderItem[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String          @id @default(cuid())
+  orderId     String
+  order       Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product         @relation(fields: [productId], references: [id])
+  variantId   String?
+  variant     ProductVariant? @relation(fields: [variantId], references: [id])
+  quantity    Int
+  unitPrice   Decimal         @db.Decimal(10, 2)
+  totalPrice  Decimal         @db.Decimal(10, 2)
+
+  @@map("order_items")
+}
+
+// ─── PROMOTIONS ──────────────────────────────────────────────
+
+enum PromoType {
+  POURCENTAGE
+  MONTANT_FIXE
+  LIVRAISON_GRATUITE
+}
+
+model PromoCode {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  type          PromoType
+  value         Decimal   @db.Decimal(10, 2)
+  minOrderAmount Decimal? @db.Decimal(10, 2)
+  maxUses       Int?
+  usedCount     Int       @default(0)
+  isActive      Boolean   @default(true)
+  validFrom     DateTime  @default(now())
+  validUntil    DateTime?
+  orders        Order[]
+  createdAt     DateTime  @default(now())
+
+  @@map("promo_codes")
+}
+
+// ─── FAVORIS & AVIS ─────────────────────────────────────────
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@map("favorites")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  rating    Int      // 1-5
+  title     String?
+  comment   String?  @db.Text
+  isVerified Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@map("reviews")
+}
+
+// ─── BLOG ────────────────────────────────────────────────────
+
+model BlogPost {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  title           String
+  excerpt         String?
+  content         String   @db.Text
+  coverImage      String?
+  metaTitle       String?
+  metaDescription String?
+  isPublished     Boolean  @default(false)
+  publishedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("blog_posts")
+}
+
+// ─── NEWSLETTER ──────────────────────────────────────────────
+
+model NewsletterSubscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("newsletter_subscribers")
+}
