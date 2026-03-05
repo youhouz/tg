@@ -245,10 +245,10 @@ export function ProductDetails({ product }: Props) {
             )}
             <dt className="text-earth-500">Conservation</dt>
             <dd className="text-earth-900 font-medium">{product.conservation}</dd>
-            {product.allergens.length > 0 && (
+            {product.allergens && JSON.parse(product.allergens).length > 0 && (
               <>
                 <dt className="text-earth-500 font-semibold text-red-700">Allergenes</dt>
-                <dd className="text-red-700 font-medium">{product.allergens.join(', ')}</dd>
+                <dd className="text-red-700 font-medium">{JSON.parse(product.allergens).join(', ')}</dd>
               </>
             )}
             {product.ingredients && (

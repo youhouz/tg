@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
-export default function InscriptionPage() {
+function InscriptionForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isPro = searchParams.get('type') === 'pro';
@@ -179,5 +179,13 @@ export default function InscriptionPage() {
         </Link>
       </p>
     </div>
+  );
+}
+
+export default function InscriptionPage() {
+  return (
+    <Suspense fallback={<div className="max-w-lg mx-auto px-4 py-12 text-center">Chargement...</div>}>
+      <InscriptionForm />
+    </Suspense>
   );
 }

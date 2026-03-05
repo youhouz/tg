@@ -48,7 +48,7 @@ export default function NouveauProduitPage() {
           stock: parseInt(form.stock),
           stockAlert: parseInt(form.stockAlert),
           minOrderPro: form.minOrderPro ? parseInt(form.minOrderPro) : null,
-          allergens: form.allergens ? form.allergens.split(',').map((s) => s.trim()) : [],
+          allergens: form.allergens ? JSON.stringify(form.allergens.split(',').map((s: string) => s.trim())) : '[]',
         }),
       });
 
